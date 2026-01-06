@@ -116,8 +116,114 @@
     </div>
 </div>
 
-<script src="dfs-prng.js"></script>
-    
-</body>
+<script>
+const rotl = (n, k) => (n << k) | (n >>> (32 - k));
+const PHI = 0x9E3779B9;
+let currentShift = 16;
 
+class DFS_PRNG {
+    constructor(seed = 123456789) {
+        this.state = seed | 0;
+    }
+    next() {
+        this.state = (this.state + PHI) | 0;
+        const r1 = (15 + (this.state & 7)) & 31;
+        const r2 = (7 + ((this.state >>> 3) & 7)) & 31;
+        const r3 = (3 + ((this.state >>> 6) & 7)) & 31;
+        return (rotl(this.state, r1) ^ ~rotl(this.state, r2) ^ rotl(this.state, r3)) >>> 0;
+    }
+}
+
+function updateShift(shift, btn) {
+    currentShift = shift;
+    document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderVisual();
+}
+
+function renderVisual() {
+    const root = document.getElementById('canvas-root');
+    root.innerHTML = '';
+    const baseSeed = Date.now();
+
+    for (let c = 0; c < 8; c++) {
+        const wrapper = document.createElement('div');
+        const canvas = document.createElement('canvas');
+        canvas.width = 160; canvas.height = 160;
+        wrapper.appendChild(canvas);
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = `Seq ${c+1}`;
+        wrapper.appendChild(label);
+        root.appendChild(wrapper);
+
+        const ctx = canvas.getContext('2d');
+        const img = ctx.createImageData(160, 160);
+        const rng = new DFS_PRNG(baseSeed + c);
+
+        for (let i = 0; i < 160*160; i++) {
+            const val = rng.next();
+            const idx = i * 4;
+            const r = (val >>> (currentShift + 8)) & 0xFF;
+            const g = (val >>> currentShift) & 0xFF;
+            const b = ((val >>> (currentShift + 4)) ^ g) & 0xFF;
+
+            img.data[idx]   = r;
+            img.data[idx+1] = g;
+            img.data[idx+2] = b;
+            img.data[idx+3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+}
+
+function runValidation() {
+    document.getElementById('status').textContent = "Testing... / テスト中...";
+    document.getElementById('results-area').style.display = "none";
+
+    setTimeout(() => {
+        const iterations = 1000000;
+        const rng = new DFS_PRNG(Date.now());
+        const res = { uniqueness: new Set(), bitCounts: new Array(32).fill(0), avalanche: 0, totalOnes: 0 };
+
+        let prev = rng.next();
+        for (let i = 0; i < iterations; i++) {
+            const val = rng.next();
+            res.uniqueness.add(val);
+            for (let b = 0; b < 32; b++) if ((val >>> b) & 1) { res.bitCounts[b]++; res.totalOnes++; }
+            let diff = prev ^ val, count = 0;
+            while (diff) { diff &= diff-1; count++; }
+            res.avalanche += count;
+            prev = val;
+        }
+
+        // 結果表示
+        document.getElementById('results-area').style.display = "block";
+        document.getElementById('status').textContent = "Test Completed / テスト完了";
+
+        const uRate = (res.uniqueness.size / iterations * 100).toFixed(4);
+        document.getElementById('res-unique').textContent = uRate + "%";
+
+        const balance = res.totalOnes / (iterations * 32);
+        document.getElementById('res-balance').textContent = (balance * 100).toFixed(3) + "%";
+        document.getElementById('res-balance-check').innerHTML = Math.abs(0.5 - balance) < 0.005 ?
+            '<span class="pass">PASS / 合格</span>' : '<span class="fail">FAIL / 不合格</span>';
+
+        document.getElementById('res-avalanche').textContent = (res.avalanche / iterations).toFixed(3);
+
+        const chart = document.getElementById('bit-chart');
+        chart.innerHTML = '';
+        for (let b = 31; b >= 0; b--) {
+            const bar = document.createElement('div');
+            bar.className = 'bit-bar';
+            bar.style.height = (res.bitCounts[b] / iterations * 240) + "%";
+            chart.appendChild(bar);
+        }
+    }, 100);
+}
+
+window.onload = renderVisual;
+</script>
+
+</body>
 </html>
