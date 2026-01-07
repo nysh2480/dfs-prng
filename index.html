@@ -117,20 +117,27 @@
 </div>
 
 <script>
-const rotl = (n, k) => (n << k) | (n >>> (32 - k));
-const PHI = 0x9E3779B9;
 let currentShift = 16;
 
 class DFS_PRNG {
     constructor(seed = 123456789) {
         this.state = seed | 0;
+        this.PHI = 0x9E3779B9;
+        this.HF = [ 21, 19, 17, 15 ];
+        this.LF = [ 13, 11, 9, 7 ];
+    }
+    rotl (n, k) {
+        return  (n << k) | (n >>> (32 - k));
     }
     next() {
-        this.state = (this.state + PHI) | 0;
-        const r1 = (15 + (this.state & 7)) & 31;
-        const r2 = (7 + ((this.state >>> 3) & 7)) & 31;
-        const r3 = (3 + ((this.state >>> 6) & 7)) & 31;
-        return (rotl(this.state, r1) ^ ~rotl(this.state, r2) ^ rotl(this.state, r3)) >>> 0;
+        this.state = (this.state + this.PHI) | 0;
+        const s = this.state;
+        const r1 = this.HF [ ( s >>> 15 ) & 3 ];
+        const r2 = this.LF [ ( s >>> 9 ) & 3 ];
+
+        const v1 = this.rotl ( this.state, r1 );
+        const v2 = this.rotl ( this.state, r2 );
+        return ( v1 ^ ~v2 ) >>> 0;
     }
 }
 
@@ -227,3 +234,4 @@ window.onload = renderVisual;
 
 </body>
 </html>
+
