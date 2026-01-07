@@ -1,1 +1,230 @@
 
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>DFS-PRNG | Dynamic Frequency Synthesis PRNG</title>
+    <meta name="description" content="高品質・高速・シンプルな擬似乱数生成器。黄金比と動的周波数合成を活用。">
+    <style>
+        body { 
+            background: #f8f9fa; 
+            color: #333; 
+            font-family: 'Segoe UI', 'Meiryo', sans-serif; 
+            padding: 20px; 
+            line-height: 1.7; 
+            max-width: 1100px; 
+            margin: 0 auto; 
+        }
+        h1, h2, h3 { color: #2c3e50; }
+        .container { background: #fff; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); margin-bottom: 30px; }
+        .card { border: 1px solid #e0e0e0; border-radius: 10px; padding: 20px; background: #ffffff; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 15px 0; }
+        button { 
+            background: #3498db; color: white; border: none; padding: 10px 20px; border-radius: 6px; 
+            cursor: pointer; font-weight: bold; transition: background 0.3s; 
+        }
+        button:hover { background: #2980b9; }
+        button.active { background: #27ae60; }
+        button.run { background: #e74c3c; font-size: 1.1rem; padding: 15px; width: 100%; }
+        button.run:hover { background: #c0392b; }
+        .canvas-group { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin: 20px 0; }
+        canvas { border: 2px solid #ddd; width: 160px; height: 160px; image-rendering: pixelated; background: #fff; border-radius: 6px; }
+        .label { text-align: center; margin-top: 8px; font-size: 0.9rem; color: #555; }
+        table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #ecf0f1; }
+        .result-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; margin-top: 20px; }
+        .stat-box { background: #f0f8ff; padding: 15px; border-radius: 8px; border-left: 5px solid #3498db; }
+        .stat-value { font-size: 1.4rem; font-weight: bold; color: #2c3e50; }
+        .bit-chart { display: flex; align-items: flex-end; gap: 2px; height: 120px; margin-top: 15px; border-bottom: 2px solid #ccc; }
+        .bit-bar { background: #3498db; flex: 1; min-width: 6px; border-radius: 2px 2px 0 0; }
+        .pass { color: #27ae60; font-weight: bold; }
+        .fail { color: #e74c3c; font-weight: bold; }
+        .bilingual { font-size: 0.9rem; color: #7f8c8d; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>DFS-PRNG: Dynamic Frequency Synthesis PRNG<br>
+        <span class="bilingual">動的周波数合成擬似乱数生成器</span></h1>
+    <p>黄金比定数と動的回転合成による、高速・高品質・シンプルな32ビットPRNGです。<br>
+       <span class="bilingual">High-quality, fast, and simple 32-bit PRNG using golden ratio constant and dynamic rotation synthesis.</span></p>
+</div>
+
+<!-- 特徴比較表 -->
+<div class="container card">
+    <h2>Features Comparison<br><span class="bilingual">特徴比較</span></h2>
+    <table>
+        <tr><th>Feature<br>特徴</th><th>DFS-PRNG</th><th>Xorshift32</th><th>Math.random()</th></tr>
+        <tr><td>Speed (JS)<br>速度</td><td>極めて高速<br>Extremely Fast</td><td>極めて高速<br>Extremely Fast</td><td>中程度<br>Moderate</td></tr>
+        <tr><td>Quality (Visual/Stats)<br>品質</td><td>最高クラス<br>Top Class</td><td>最高クラス<br>Top Class</td><td>中程度<br>Average</td></tr>
+        <tr><td>State Size<br>状態サイズ</td><td>32bit</td><td>32bit</td><td>内部大<br>Large Internal</td></tr>
+        <tr><td>Simplicity<br>シンプルさ</td><td>◎ (数行)<br>Excellent</td><td>◎<br>Excellent</td><td>—</td></tr>
+        <tr><td>Uniqueness<br>独自性</td><td>黄金比 + 動的周波数合成<br>Golden Ratio + Dynamic Freq.</td><td>XOR + Shift</td><td>ブラウザ依存<br>Browser-dependent</td></tr>
+    </table>
+</div>
+
+<!-- 視覚テスト -->
+<div class="container card">
+    <h2>1. Visual Quality Test (Full Color Noise)<br>
+        <span class="bilingual">視覚品質テスト（フルカラーノイズ）</span></h2>
+    <p>32ビットの出力をRGBに割り当て。理想は均一な砂嵐模様です。<br>
+       <span class="bilingual">Maps 32-bit output to RGB channels. Ideal result: uniform white noise.</span></p>
+
+    <div class="btn-group">
+        <button id="btn-high" onclick="updateShift(16,this)" class="active">High 16bit [31-16]<br>上位16bit</button>
+        <button id="btn-mid" onclick="updateShift(8,this)">Mid 16bit [23-8]<br>中位16bit</button>
+        <button id="btn-low" onclick="updateShift(0,this)">Low 16bit [15-0]<br>下位16bit</button>
+    </div>
+
+    <div class="canvas-group" id="canvas-root"></div>
+    <button onclick="renderVisual()" style="margin-top:20px;">Refresh with New Seed<br>新しいシードで再描画</button>
+</div>
+
+<!-- 統計テスト -->
+<div class="container card">
+    <h2>2. Statistical Validation (1M iterations)<br>
+        <span class="bilingual">統計検証（100万回）</span></h2>
+    <button class="run" onclick="runValidation()">RUN STATISTICAL TEST<br>統計テスト実行</button>
+    <div id="status" style="text-align:center; margin-top:10px; color:#777;">Ready / 準備完了</div>
+
+    <div id="results-area" style="display:none; margin-top:30px;">
+        <div class="result-grid">
+            <div class="stat-box">
+                <div class="stat-label">Uniqueness Rate<br>ユニーク率</div>
+                <div id="res-unique" class="stat-value">-</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Bit Balance (1の割合)<br>ビットバランス</div>
+                <div id="res-balance" class="stat-value">-</div>
+                <div id="res-balance-check">-</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-label">Avg Avalanche<br>平均アバランシェ</div>
+                <div id="res-avalanche" class="stat-value">-</div>
+                <div class="stat-label">(Ideal: 16.0 / 理想値: 16.0)</div>
+            </div>
+        </div>
+
+        <h3 style="margin-top:30px;">Bit Frequency Chart (Bit31 → Bit0)<br>
+            <span class="bilingual">ビット出現頻度チャート</span></h3>
+        <div class="bit-chart" id="bit-chart"></div>
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#777; margin-top:8px;">
+            <span>MSB (Bit 31)</span>
+            <span>LSB (Bit 0)</span>
+        </div>
+    </div>
+</div>
+
+<script>
+const rotl = (n, k) => (n << k) | (n >>> (32 - k));
+const PHI = 0x9E3779B9;
+let currentShift = 16;
+
+class DFS_PRNG {
+    constructor(seed = 123456789) {
+        this.state = seed | 0;
+    }
+    next() {
+        this.state = (this.state + PHI) | 0;
+        const r1 = (15 + (this.state & 7)) & 31;
+        const r2 = (7 + ((this.state >>> 3) & 7)) & 31;
+        const r3 = (3 + ((this.state >>> 6) & 7)) & 31;
+        return (rotl(this.state, r1) ^ ~rotl(this.state, r2) ^ rotl(this.state, r3)) >>> 0;
+    }
+}
+
+function updateShift(shift, btn) {
+    currentShift = shift;
+    document.querySelectorAll('.btn-group button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderVisual();
+}
+
+function renderVisual() {
+    const root = document.getElementById('canvas-root');
+    root.innerHTML = '';
+    const baseSeed = Date.now();
+
+    for (let c = 0; c < 8; c++) {
+        const wrapper = document.createElement('div');
+        const canvas = document.createElement('canvas');
+        canvas.width = 160; canvas.height = 160;
+        wrapper.appendChild(canvas);
+        const label = document.createElement('div');
+        label.className = 'label';
+        label.textContent = `Seq ${c+1}`;
+        wrapper.appendChild(label);
+        root.appendChild(wrapper);
+
+        const ctx = canvas.getContext('2d');
+        const img = ctx.createImageData(160, 160);
+        const rng = new DFS_PRNG(baseSeed + c);
+
+        for (let i = 0; i < 160*160; i++) {
+            const val = rng.next();
+            const idx = i * 4;
+            const r = (val >>> (currentShift + 8)) & 0xFF;
+            const g = (val >>> currentShift) & 0xFF;
+            const b = ((val >>> (currentShift + 4)) ^ g) & 0xFF;
+
+            img.data[idx]   = r;
+            img.data[idx+1] = g;
+            img.data[idx+2] = b;
+            img.data[idx+3] = 255;
+        }
+        ctx.putImageData(img, 0, 0);
+    }
+}
+
+function runValidation() {
+    document.getElementById('status').textContent = "Testing... / テスト中...";
+    document.getElementById('results-area').style.display = "none";
+
+    setTimeout(() => {
+        const iterations = 1000000;
+        const rng = new DFS_PRNG(Date.now());
+        const res = { uniqueness: new Set(), bitCounts: new Array(32).fill(0), avalanche: 0, totalOnes: 0 };
+
+        let prev = rng.next();
+        for (let i = 0; i < iterations; i++) {
+            const val = rng.next();
+            res.uniqueness.add(val);
+            for (let b = 0; b < 32; b++) if ((val >>> b) & 1) { res.bitCounts[b]++; res.totalOnes++; }
+            let diff = prev ^ val, count = 0;
+            while (diff) { diff &= diff-1; count++; }
+            res.avalanche += count;
+            prev = val;
+        }
+
+        // 結果表示
+        document.getElementById('results-area').style.display = "block";
+        document.getElementById('status').textContent = "Test Completed / テスト完了";
+
+        const uRate = (res.uniqueness.size / iterations * 100).toFixed(4);
+        document.getElementById('res-unique').textContent = uRate + "%";
+
+        const balance = res.totalOnes / (iterations * 32);
+        document.getElementById('res-balance').textContent = (balance * 100).toFixed(3) + "%";
+        document.getElementById('res-balance-check').innerHTML = Math.abs(0.5 - balance) < 0.005 ?
+            '<span class="pass">PASS / 合格</span>' : '<span class="fail">FAIL / 不合格</span>';
+
+        document.getElementById('res-avalanche').textContent = (res.avalanche / iterations).toFixed(3);
+
+        const chart = document.getElementById('bit-chart');
+        chart.innerHTML = '';
+        for (let b = 31; b >= 0; b--) {
+            const bar = document.createElement('div');
+            bar.className = 'bit-bar';
+            bar.style.height = (res.bitCounts[b] / iterations * 240) + "%";
+            chart.appendChild(bar);
+        }
+    }, 100);
+}
+
+window.onload = renderVisual;
+</script>
+
+</body>
+</html>
