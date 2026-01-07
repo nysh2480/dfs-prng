@@ -11,6 +11,8 @@ class DFS_PRNG {
 	constructor(seed = 123456789) {
 		this.state = seed | 0;
 		this.PHI = 0x9E3779B9;
+		this.HF = [21, 19, 17, 15];
+		this.LF = [13, 11, 9, 7];
 	}
 
 	/**
@@ -30,11 +32,10 @@ class DFS_PRNG {
 	next() {
 		// 黄金比による位相更新
 		this.state = (this.state + this.PHI) | 0;
-
+		const s = this.state;
 		// 内部状態から動的に抽出された回転パラメータ
-		const r1 = (15 + (this.state & 7)) & 31;
-		const r2 = (7 + ((this.state >>> 3) & 7)) & 31;
-		const r3 = (3 + ((this.state >>> 6) & 7)) & 31;
+		const r1 = this.HF [ ( s >>> 15 ) & 3];
+		const r2 = this.LF [ ( s >>> 9 ) & 3];
 
 		// 可変調合成波による出力生成
 		return (
